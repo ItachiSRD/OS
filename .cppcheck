@@ -1,0 +1,32 @@
+# Cppcheck configuration for OS development
+# Suppress some warnings that are common in systems programming
+
+# Enable all checks
+enable=all
+
+# Suppress specific warnings that are acceptable in OS development
+suppress=missingIncludeSystem
+suppress=unusedFunction:*test*
+suppress=variableScope
+suppress=constParameter
+suppress=constVariable
+
+# Include paths (add as needed)
+# -I./src
+# -I./include
+
+# Define macros that might affect analysis
+# -D__KERNEL__
+# -D__GNUC__
+
+# Platform settings
+platform=unix64
+
+# Check level (exhaustive can be slow)
+check-level=normal
+
+# Output format
+template="{file}:{line}:{column}: {severity}: {message} [{id}]"
+
+# Inline suppression
+inline-suppr=yes

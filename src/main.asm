@@ -1,82 +1,106 @@
 ; =========================================================================
-; A Minimal "Hello World" Operating System Boot Sector
+; A Minimal Operating System Boot Sector that prints "Hello World"
 ; =========================================================================
 
-; --- Stage 1: Assembly Time (Building the .bin file) ---
-; Everything in this file is first read by the NASM assembler. NASM's job
-; is to translate this human-readable text into a 512-byte binary file
-; containing pure machine code and data. It processes two kinds of statements:
-; 1. DIRECTIVES: Commands for the assembler itself (e.g., `org`, `dw`).
-; 2. INSTRUCTIONS: Commands that will be run by the CPU later (e.g., `hlt`, `jmp`).
-
-; -------------------------------------------------------------------------
-; DIRECTIVE: `org` (Set Origin)
-; -------------------------------------------------------------------------
-; This tells NASM where the program will be located in memory at RUN TIME.
-; The BIOS standard is to load the first boot sector from a disk into
-; the computer's RAM at the physical memory address 0x7C00. This directive
-; ensures that if we had labels or variables, their addresses would be
-; calculated correctly relative to this starting point.
 org 0x7C00
-
-; -------------------------------------------------------------------------
-; DIRECTIVE: `bits` (Set CPU Mode)
-; -------------------------------------------------------------------------
-; This tells NASM to generate machine code for a 16-bit processor.
-; For backward compatibility, all x86 CPUs start in a 16-bit "real mode,"
-; so our initial code must also be 16-bit.
 bits 16
 
+; --- Assembly Time Directives ---
 
-; --- Stage 2: Run Time (CPU Execution) ---
-; The following code is what the CPU actually runs AFTER the BIOS has:
-;   1. Loaded the entire 512-byte file into RAM at 0x7C00.
-;   2. ALREADY checked for and verified the 0xAA55 signature at the end.
+; A macro is a simple text-replacement tool used by the assembler.
+; Here, we're defining 'ENDL' to be a shortcut for the two bytes that
+; create a new line on the screen: Carriage Return (0x0D) and Line Feed (0x0A).
+%define ENDL 0x0D, 0x0A
 
-; The 'main' label is just for our convenience; execution starts at 0x7C00.
+
+; --- Run Time Code ---
+
+; Execution starts here at 0x7C00.
+start:
+    ; It's good practice to jump over any functions or data to the main
+    ; part of your program. This keeps the layout clean.
+    jmp main
+
+
+; -------------------------------------------------------------------------
+; FUNCTION: puts (Print String)
+; -------------------------------------------------------------------------
+; Prints a null-terminated string to the screen using a BIOS interrupt.
+; Expects: The DS:SI register pair to point to the start of the string.
+puts:
+    ; A function should not change the state of the CPU unexpectedly.
+    ; We save the registers we are about to modify by pushing them onto the stack.
+    push si
+    push ax
+
+.loop:
+    ; `lodsb` is a special instruction that does two things:
+    ; 1. It LOADS a Byte from the memory address [DS:SI] into the AL register.
+    ; 2. It automatically increments the SI register to point to the next byte.
+    lodsb
+
+    ; `or al, al` is a clever, fast way to check if AL is zero.
+    ; If AL is zero, the CPU's Zero Flag (ZF) gets set.
+    or al, al
+
+    ; `jz` means "Jump if Zero". If the Zero Flag is set (meaning we found
+    ; the null terminator `0` at the end of our string), we jump to .done.
+    jz .done
+
+    ; Now we use the BIOS to print the character that's in the AL register.
+    ; This is done via BIOS interrupt 0x10 (video services).
+    mov ah, 0x0E    ; Tell the BIOS we want to use the "teletype" function.
+    mov bh, 0       ; Page number 0.
+    int 0x10        ; Call the BIOS interrupt.
+
+    ; Jump back to the start of the loop to process the next character.
+    jmp .loop
+
+.done:
+    ; We're finished, so we restore the original values of the registers
+    ; by popping them off the stack in the reverse order we pushed them.
+    pop ax
+    pop si
+
+    ; `ret` returns control back to wherever the function was called from.
+    ret
+
+
+; -------------------------------------------------------------------------
+; Main Program Logic
+; -------------------------------------------------------------------------
 main:
-    ; -------------------------------------------------------------------------
-    ; INSTRUCTION: `hlt` (Halt)
-    ; -------------------------------------------------------------------------
-    ; This tells the CPU to STOP executing instructions and enter a low-power
-    ; idle state. In our simple OS, this is the end of the program. The system
-    ; has successfully booted and will now do nothing.
+    ; We need to set up our segment registers. The BIOS doesn't guarantee
+    ; what they'll be, so we set them to a known value.
+    mov ax, 0       ; Can't write 0 directly to a segment register.
+    mov ds, ax      ; Set Data Segment to 0. Now DS:SI will point to correct memory.
+    mov es, ax      ; Set Extra Segment to 0.
+
+    ; We also need to set up a stack. The stack grows downwards in memory.
+    ; We'll place it right at the start of our program's memory space (0x7C00).
+    ; Since it grows down, it won't overwrite our code.
+    mov ss, ax      ; Set Stack Segment to 0.
+    mov sp, 0x7C00  ; Set Stack Pointer.
+
+    ; Prepare to call our puts function.
+    mov si, msg_hello   ; Load the address of our message into the SI register.
+    call puts           ; Call the function to print the string.
+
+    ; Halt the CPU, just like in the simpler version.
     hlt
 
-; -------------------------------------------------------------------------
-; Failsafe Infinite Loop
-; -------------------------------------------------------------------------
-; The code below `hlt` will NOT run under normal circumstances.
 .halt:
-    ; INSTRUCTION: `jmp` (Jump)
-    ; A `hlt` command can be "woken up" by a hardware interrupt (like a
-    ; keyboard press or system timer). If this happens, the CPU would try to
-    ; execute the instruction immediately following `hlt`.
-    ; This `jmp` command creates an infinite loop, safely trapping the CPU
-    ; here. This prevents it from running random data in memory and crashing.
     jmp .halt
 
 
-; --- Stage 1 Continued: Data Padding and Signature (Assembly Time) ---
-; The following lines are DIRECTIVES, not instructions. They are processed
-; by NASM to correctly structure the final 512-byte file.
+; --- Data Section ---
 
-; -------------------------------------------------------------------------
-; DIRECTIVE: `times` (Repeat)
-; -------------------------------------------------------------------------
-; This is a command to NASM. It pads our file with zeros to make it the
-; correct size. The calculation `510 - ($ - $$)` means: "fill with zeros
-; (`db 0`) until we reach the 510th byte of the file."
-;   `$`  = current position
-;   `$$` = start position
+; FIX: The `db` (Define Byte) directive was missing here. This tells NASM
+; to store the following bytes in the binary file.
+msg_hello: db 'Hello World!', ENDL, 0
+
+
+; --- Padding and Boot Signature ---
+
 times 510 - ($ - $$) db 0
-
-; -------------------------------------------------------------------------
-; DIRECTIVE: `dw` (Define Word)
-; -------------------------------------------------------------------------
-; This is the "magic number" the BIOS looks for. This directive tells
-; NASM to write a 2-byte word (0xAA55) at the very end of the file
-; (bytes 511 and 512). The BIOS verifies this signature *before* it decides
-; to run our code. This value is already baked into the `main.bin` file
-; long before the CPU ever sees it.
 dw 0xAA55
