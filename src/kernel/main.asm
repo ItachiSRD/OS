@@ -97,7 +97,7 @@ main:
 
 ; FIX: The `db` (Define Byte) directive was missing here. This tells NASM
 ; to store the following bytes in the binary file.
-msg_hello: db 'Hello World!', ENDL, 0
+msg_hello: db 'Hello World from kernel!', ENDL, 0
 
 
 ; --- Padding and Boot Signature ---
