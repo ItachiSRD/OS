@@ -2,7 +2,7 @@
 ; A Minimal Operating System Boot Sector that prints "Hello World"
 ; =========================================================================
 
-org 0x7C00
+org 0x0
 bits 16
 
 ; --- Assembly Time Directives ---
@@ -19,7 +19,12 @@ bits 16
 start:
     ; It's good practice to jump over any functions or data to the main
     ; part of your program. This keeps the layout clean.
-    jmp main
+    mov si, msg_hello
+    call puts
+
+.halt:
+    cli
+    hlt
 
 
 ; -------------------------------------------------------------------------
@@ -27,11 +32,16 @@ start:
 ; -------------------------------------------------------------------------
 ; Prints a null-terminated string to the screen using a BIOS interrupt.
 ; Expects: The DS:SI register pair to point to the start of the string.
+;
+; Prints a string to the screen
+; Params:
+;   - ds:si points to string
+;
 puts:
-    ; A function should not change the state of the CPU unexpectedly.
-    ; We save the registers we are about to modify by pushing them onto the stack.
+    ; save registers we will modify
     push si
     push ax
+    push bx
 
 .loop:
     ; `lodsb` is a special instruction that does two things:
@@ -59,48 +69,13 @@ puts:
 .done:
     ; We're finished, so we restore the original values of the registers
     ; by popping them off the stack in the reverse order we pushed them.
+    pop bx
     pop ax
-    pop si
-
-    ; `ret` returns control back to wherever the function was called from.
+    pop si    
     ret
-
-
-; -------------------------------------------------------------------------
-; Main Program Logic
-; -------------------------------------------------------------------------
-main:
-    ; We need to set up our segment registers. The BIOS doesn't guarantee
-    ; what they'll be, so we set them to a known value.
-    mov ax, 0       ; Can't write 0 directly to a segment register.
-    mov ds, ax      ; Set Data Segment to 0. Now DS:SI will point to correct memory.
-    mov es, ax      ; Set Extra Segment to 0.
-
-    ; We also need to set up a stack. The stack grows downwards in memory.
-    ; We'll place it right at the start of our program's memory space (0x7C00).
-    ; Since it grows down, it won't overwrite our code.
-    mov ss, ax      ; Set Stack Segment to 0.
-    mov sp, 0x7C00  ; Set Stack Pointer.
-
-    ; Prepare to call our puts function.
-    mov si, msg_hello   ; Load the address of our message into the SI register.
-    call puts           ; Call the function to print the string.
-
-    ; Halt the CPU, just like in the simpler version.
-    hlt
-
-.halt:
-    jmp .halt
-
 
 ; --- Data Section ---
 
 ; FIX: The `db` (Define Byte) directive was missing here. This tells NASM
 ; to store the following bytes in the binary file.
-msg_hello: db 'Hello World from kernel!', ENDL, 0
-
-
-; --- Padding and Boot Signature ---
-
-times 510 - ($ - $$) db 0
-dw 0xAA55
+msg_hello: db 'Hello world from KERNEL!', ENDL, 0

@@ -2,3 +2,5 @@
 build/
 A.cpp
 A
+*.pdf
+.DS_Store
