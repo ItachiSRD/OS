@@ -2,7 +2,7 @@
 ; A Minimal Operating System Boot Sector that prints "Hello World"
 ; =========================================================================
 
-org 0x7C00
+org 0x7E00
 bits 16
 
 ; --- Assembly Time Directives ---
@@ -77,7 +77,7 @@ main:
     mov es, ax      ; Set Extra Segment to 0.
 
     ; We also need to set up a stack. The stack grows downwards in memory.
-    ; We'll place it right at the start of our program's memory space (0x7C00).
+    ; We'll place it below the kernel space, at 0x7C00.
     ; Since it grows down, it won't overwrite our code.
     mov ss, ax      ; Set Stack Segment to 0.
     mov sp, 0x7C00  ; Set Stack Pointer.
@@ -87,6 +87,7 @@ main:
     call puts           ; Call the function to print the string.
 
     ; Halt the CPU, just like in the simpler version.
+    cli                 ; Clear interrupts
     hlt
 
 .halt:
@@ -97,10 +98,9 @@ main:
 
 ; FIX: The `db` (Define Byte) directive was missing here. This tells NASM
 ; to store the following bytes in the binary file.
-msg_hello: db 'Hello World!', ENDL, 0
+msg_hello: db 'Hello World from kernel!', ENDL, 0
 
 
-; --- Padding and Boot Signature ---
+; --- Padding (no boot signature needed for kernel) ---
 
-times 510 - ($ - $$) db 0
-dw 0xAA55
+times 512 - ($ - $$) db 0
